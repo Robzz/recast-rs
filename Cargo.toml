@@ -1,0 +1,18 @@
+[package]
+name = "recast-rs"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+#bundled-recast = ["recast-sys/bundled"]
+default = ["detour", "recast"]
+detour = ["recast-sys/detour"]
+recast = ["recast-sys/recast"]
+
+[workspace]
+members = ["./recast-sys"]
+
+[dependencies]
+cxx = "1.0"
+recast-sys = { path = "./recast-sys", default-features = false }
+thiserror = "1.0"

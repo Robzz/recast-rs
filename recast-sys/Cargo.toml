@@ -1,0 +1,18 @@
+[package]
+name = "recast-sys"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = ["recast", "detour"]
+detour = []
+recast = []
+
+# Only support bundled builds for now
+#bundled = []
+
+[dependencies]
+cxx = "1.0"
+
+[build-dependencies]
+cxx-build = "1.0"
