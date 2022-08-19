@@ -1,24 +1,4 @@
-use cxx::UniquePtr;
-use recast_sys::ffi::recast::rcPolyMeshDetail;
-
-use std::pin::Pin;
-
-use crate::{check_uptr_alloc, RecastError};
-
-pub struct PolyMeshDetail {
-    ptr: UniquePtr<rcPolyMeshDetail>
-}
-
-impl PolyMeshDetail {
-    pub fn new() -> Result<PolyMeshDetail, RecastError> {
-        let details = recast_sys::ffi::recast::new_poly_mesh_detail();
-        Ok(PolyMeshDetail { ptr: check_uptr_alloc(details)? })
-    }
-
-    pub fn pin_mut(&mut self) -> Pin<&mut rcPolyMeshDetail> {
-        self.ptr.pin_mut()
-    }
-
+impl super::PolyMeshDetail {
     pub fn meshes(&self) -> &[u32] {
         let meshes_buffer = recast_sys::ffi::recast::poly_mesh_detail_meshes(self.as_ref());
         let n_meshes = recast_sys::ffi::recast::poly_mesh_detail_num_meshes(self.as_ref());
@@ -38,8 +18,25 @@ impl PolyMeshDetail {
     }
 }
 
-impl AsRef<rcPolyMeshDetail> for PolyMeshDetail {
-    fn as_ref(&self) -> &rcPolyMeshDetail {
-        self.ptr.as_ref().unwrap()
+#[cfg(test)]
+mod tests {
+    use crate::recast::PolyMeshDetail;
+
+    #[test]
+    fn test_new_poly_mesh_detail_meshes_empty() {
+        let detail = PolyMeshDetail::new().unwrap();
+        assert!(detail.meshes().is_empty());
+    }
+
+    #[test]
+    fn test_new_poly_mesh_detail_vertices_empty() {
+        let detail = PolyMeshDetail::new().unwrap();
+        assert!(detail.vertices().is_empty());
+    }
+
+    #[test]
+    fn test_new_poly_mesh_detail_triangles_empty() {
+        let detail = PolyMeshDetail::new().unwrap();
+        assert!(detail.triangles().is_empty());
     }
 }

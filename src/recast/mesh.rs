@@ -27,6 +27,6 @@ impl<'a> Mesh<'a> {
 #[derive(Debug)]
 pub struct MarkedMesh<'a> {
     pub(crate) vertices: &'a [f32],
-    pub(crate) indices: &'a [i32],
+    pub(crate) indices: Vec<i32>,
     pub(crate) areas: Vec<u8>
 }

@@ -30,7 +30,15 @@ const std::uint16_t* polyMeshGetVerts(rcPolyMesh const& poly_mesh) {
     return poly_mesh.verts;
 }
 
+std::uint16_t* polyMeshGetVertsMut(rcPolyMesh& poly_mesh) {
+    return poly_mesh.verts;
+}
+
 const std::uint16_t* polyMeshGetPolys(rcPolyMesh const& poly_mesh) {
+    return poly_mesh.polys;
+}
+
+std::uint16_t* polyMeshGetPolysMut(rcPolyMesh& poly_mesh) {
     return poly_mesh.polys;
 }
 
@@ -38,7 +46,23 @@ const std::uint16_t* polyMeshGetRegions(rcPolyMesh const& poly_mesh) {
     return poly_mesh.regs;
 }
 
+std::uint16_t* polyMeshGetRegionsMut(rcPolyMesh& poly_mesh) {
+    return poly_mesh.regs;
+}
+
+const std::uint16_t* polyMeshGetFlags(rcPolyMesh const& poly_mesh) {
+    return poly_mesh.flags;
+}
+
+std::uint16_t* polyMeshGetFlagsMut(rcPolyMesh& poly_mesh) {
+    return poly_mesh.flags;
+}
+
 const std::uint8_t* polyMeshGetAreas(rcPolyMesh const& poly_mesh) {
+    return poly_mesh.areas;
+}
+
+std::uint8_t* polyMeshGetAreasMut(rcPolyMesh& poly_mesh) {
     return poly_mesh.areas;
 }
 
@@ -51,7 +75,7 @@ std::int32_t polyMeshGetVertexCount(rcPolyMesh const& poly_mesh) {
 }
 
 std::int32_t polyMeshGetMaxVertexCountPerPoly(rcPolyMesh const& poly_mesh) {
-    return poly_mesh.nverts;
+    return poly_mesh.nvp;
 }
 
 std::int32_t polyMeshDetailGetNumMeshes(rcPolyMeshDetail const& detail) {

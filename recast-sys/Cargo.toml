@@ -4,12 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["recast", "detour"]
-detour = []
-recast = []
+default = ["recast", "detour", "detour_crowd"]
 
-# Only support bundled builds for now
-#bundled = []
+detour = []
+detour_crowd = ["detour"]
+recast = []
 
 [dependencies]
 cxx = "1.0"

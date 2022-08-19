@@ -1,3 +1,4 @@
+#[derive(Debug, Clone, PartialEq)]
 pub struct RecastConfig {
     pub tile_size: i32,
     pub border_size: i32,
@@ -17,6 +18,10 @@ pub struct RecastConfig {
     pub max_simplification_error: f32,
     pub min_region_area: i32,
     pub merge_region_area: i32,
+    /// The maximum number of vertices per polygon in the output data.
+    ///
+    /// *NOTE*: Detour only supports navmeshes of up to 6 vertices per polygon. This is the default
+    /// value.
     pub max_verts_per_poly: i32,
     pub details_sample_dist: f32,
     pub details_sample_max_error: f32,
@@ -46,11 +51,24 @@ impl Default for RecastConfig {
     }
 }
 
-/// The module containing the Recast FFI definitions.
+/// The module containing the Recast libraries FFI definitions.
 ///
-/// We do not expose the `dt/rcAlloc*` functions and expose our own which
+/// The functions exposed are intended to be as close as possible to a 1:1 correspondence to the
+/// Recast API, but there might be some minor differences in places. This also means that using
+/// this API from Rust safely will be fairly unergonomic, it is therefore highly recommended to use
+/// the wrapper `recast-rs` crate to access this functionality.
+///
+/// We do not expose the `dt/rcAlloc*` functions and expose our own constructors
 /// construct a `UniquePtr` instead, as these are safer and more convenient to use.
-#[allow(clippy::too_many_arguments)]
+///
+/// Many of these functions deal with raw pointers and are therefore unsafe by nature.
+/// In general, using them safely boils down to passing in properly initialized data along with
+/// correct size information.
+///
+/// When in doubt, check the official Recast documentation for more information on what a specific
+/// function does.
+// TODO: safety preconditions will need to be documented before release
+#[allow(clippy::too_many_arguments, clippy::missing_safety_doc)]
 pub mod ffi {
     #[cxx::bridge]
     #[cfg(feature = "recast")]
@@ -112,42 +130,6 @@ pub mod ffi {
             /// function and must not have been already free'd.
             pub unsafe fn rcFreeHeightField(heightfield: *mut rcHeightfield);
 
-            #[rust_name = "free_compact_heightfield"]
-            /// Free a `rcCompactHeightfield` allocated by Recast.
-            ///
-            /// # Safety
-            ///
-            /// The pointer passed to this method must have been obtained by the `new_compact_heightfield`
-            /// function and must not have been already free'd.
-            pub unsafe fn rcFreeCompactHeightfield(heightfield: *mut rcCompactHeightfield);
-
-            #[rust_name = "free_contour_set"]
-            /// Free a `rcContourSet` allocated by Recast.
-            ///
-            /// # Safety
-            ///
-            /// The pointer passed to this method must have been obtained by the `new_contour_set`
-            /// function and must not have been already free'd.
-            pub unsafe fn rcFreeContourSet(heightfield: *mut rcContourSet);
-
-            #[rust_name = "free_poly_mesh"]
-            /// Free a `rcPolyMesh` allocated by Recast.
-            ///
-            /// # Safety
-            ///
-            /// The pointer passed to this method must have been obtained by the
-            /// `new_poly_mesh` function and must not have been already free'd.
-            pub unsafe fn rcFreePolyMesh(poly_mesh: *mut rcPolyMesh);
-
-            #[rust_name = "free_poly_mesh_detail"]
-            /// Free a `rcPolyMeshDetail` allocated by Recast.
-            ///
-            /// # Safety
-            ///
-            /// The pointer passed to this method must have been obtained by the
-            /// `new_poly_mesh_detail` function and must not have been already free'd.
-            pub unsafe fn rcFreePolyMeshDetail(heightfield: *mut rcPolyMeshDetail);
-
             #[rust_name = "create_heightfield"]
             pub unsafe fn rcCreateHeightfield(
                 context: *mut rcContext,
@@ -179,6 +161,16 @@ pub mod ffi {
                 indices: *const i32,
                 areas: *const u8,
                 n_triangles: i32,
+                heightfield: Pin<&mut rcHeightfield>,
+                flag_merge_threshold: i32,
+            ) -> bool;
+
+            #[rust_name = "rasterize_triangles"]
+            pub unsafe fn rcRasterizeTriangles(
+                context: *mut rcContext,
+                vertices: *const f32,
+                areas: *const u8,
+                n_vertices: i32,
                 heightfield: Pin<&mut rcHeightfield>,
                 flag_merge_threshold: i32,
             ) -> bool;
@@ -267,14 +259,32 @@ pub mod ffi {
             #[rust_name = "poly_mesh_get_vertices"]
             pub fn polyMeshGetVerts(poly_mesh: &rcPolyMesh) -> *const u16;
 
+            #[rust_name = "poly_mesh_get_vertices_mut"]
+            pub fn polyMeshGetVertsMut(poly_mesh: Pin<&mut rcPolyMesh>) -> *mut u16;
+
             #[rust_name = "poly_mesh_get_polys"]
             pub fn polyMeshGetPolys(poly_mesh: &rcPolyMesh) -> *const u16;
+
+            #[rust_name = "poly_mesh_get_polys_mut"]
+            pub fn polyMeshGetPolysMut(poly_mesh: Pin<&mut rcPolyMesh>) -> *mut u16;
 
             #[rust_name = "poly_mesh_get_regions"]
             pub fn polyMeshGetRegions(poly_mesh: &rcPolyMesh) -> *const u16;
 
+            #[rust_name = "poly_mesh_get_regions_mut"]
+            pub fn polyMeshGetRegionsMut(poly_mesh: Pin<&mut rcPolyMesh>) -> *mut u16;
+
+            #[rust_name = "poly_mesh_get_flags"]
+            pub fn polyMeshGetFlags(poly_mesh: &rcPolyMesh) -> *const u16;
+
+            #[rust_name = "poly_mesh_get_flags_mut"]
+            pub fn polyMeshGetFlagsMut(poly_mesh: Pin<&mut rcPolyMesh>) -> *mut u16;
+
             #[rust_name = "poly_mesh_get_areas"]
             pub fn polyMeshGetAreas(poly_mesh: &rcPolyMesh) -> *const u8;
+
+            #[rust_name = "poly_mesh_get_areas_mut"]
+            pub fn polyMeshGetAreasMut(poly_mesh: Pin<&mut rcPolyMesh>) -> *mut u8;
 
             #[rust_name = "poly_mesh_get_poly_count"]
             pub fn polyMeshGetPolyCount(poly_mesh: &rcPolyMesh) -> i32;
@@ -306,17 +316,201 @@ pub mod ffi {
     }
 
     #[cxx::bridge]
-    #[cfg(feature = "recast")]
+    #[cfg(feature = "detour")]
     pub mod detour {
+        struct NavMeshCreateParams {
+            // PolyMesh
+            vertices: *const u16,
+            num_vertices: i32,
+            polygons: *const u16,
+            polygon_flags: *const u16,
+            polygon_areas: *const u8,
+            num_polys: i32,
+            max_vertices_per_poly: i32,
+            // PolyMeshDetail
+            detail_meshes: *const u32,
+            detail_vertices: *const f32,
+            num_detail_vertices: i32,
+            detail_triangles: *const u8,
+            num_detail_triangles: i32,
+            // Off-mesh connections (optional)
+            off_mesh_conn_vertices: *const f32,
+            off_mesh_conn_radii: *const f32,
+            off_mesh_conn_flags: *const u16,
+            off_mesh_conn_areas: *const u8,
+            off_mesh_conn_dir: *const u8,
+            off_mesh_conn_ids: *const u32,
+            off_mesh_conn_count: i32,
+            // Tile attributes
+            user_id: u32,
+            tile_x: i32,
+            tile_y: i32,
+            tile_layer: i32,
+            b_min: [f32; 3],
+            b_max: [f32; 3],
+            // General configuration
+            walkable_height: f32,
+            walkable_radius: f32,
+            walkable_climb: f32,
+            cs: f32,
+            ch: f32,
+            build_bv_tree: bool,
+        }
+
+        #[repr(i32)]
+        enum dtTileFlags {
+            #[rust_name = "FreeData"]
+            DT_TILE_FREE_DATA = 1,
+        }
+
+        unsafe extern "C++" {
+            include!("recast-sys/include/detour.h");
+
+            #[cfg(feature = "detour_crowd")]
+            include!("recast-sys/include/detour_crowd.h");
+
+            type dtNavMesh;
+            type dtNavMeshQuery;
+            type dtTileFlags;
+            type dtQueryFilter;
+
+            #[cfg(feature = "detour_crowd")]
+            type dtPathCorridor;
+
+            #[rust_name = "new_navmesh"]
+            pub fn newDtNavMesh() -> UniquePtr<dtNavMesh>;
+
+            #[rust_name = "new_navmesh_query"]
+            pub fn newDtNavMeshQuery() -> UniquePtr<dtNavMeshQuery>;
+
+            #[rust_name = "new_query_filter"]
+            pub fn newDtQueryFilter() -> UniquePtr<dtQueryFilter>;
+
+            #[rust_name = "new_path_corridor"]
+            #[cfg(feature = "detour_crowd")]
+            pub fn newDtPathCorridor() -> UniquePtr<dtPathCorridor>;
+
+            #[rust_name = "create_navmesh_data"]
+            pub unsafe fn createNavMeshData(
+                params: *mut NavMeshCreateParams,
+                out_data: *mut *mut u8,
+                out_data_size: *mut i32,
+            ) -> bool;
+
+            #[rust_name = "status_failed"]
+            pub fn dtStatusFailed(status: u32) -> bool;
+
+            #[rust_name = "init"]
+            pub unsafe fn init(
+                self: Pin<&mut dtNavMesh>,
+                data: *mut u8,
+                data_len: i32,
+                flags: i32,
+            ) -> u32;
+
+            #[rust_name = "init"]
+            pub unsafe fn init(
+                self: Pin<&mut dtNavMeshQuery>,
+                navmesh: *const dtNavMesh,
+                max_nodes: i32,
+            ) -> u32;
+
+            #[rust_name = "init"]
+            #[cfg(feature = "detour_crowd")]
+            pub unsafe fn init(
+                self: Pin<&mut dtPathCorridor>,
+                max_len: i32
+            ) -> bool;
+
+            #[rust_name = "find_nearest_poly"]
+            pub unsafe fn findNearestPoly(
+                self: &dtNavMeshQuery,
+                center: *const f32,
+                half_extents: *const f32,
+                filter: *const dtQueryFilter,
+                nearest_ref: *mut u32,
+                nearest_point: *mut f32,
+            ) -> u32;
+
+            #[rust_name = "find_path"]
+            pub unsafe fn findPath(
+                self: &dtNavMeshQuery,
+                start_poly: u32,
+                end_poly: u32,
+                origin: *const f32,
+                destination: *const f32,
+                filter: *const dtQueryFilter,
+                path: *mut u32,
+                path_len: *mut i32,
+                max_len: i32
+            ) -> u32;
+
+            #[rust_name = "reset"]
+            #[cfg(feature = "detour_crowd")]
+            pub unsafe fn reset(
+                self: Pin<&mut dtPathCorridor>,
+                poly: u32,
+                pos: *const f32
+            );
+
+            #[rust_name = "set_corridor"]
+            #[cfg(feature = "detour_crowd")]
+            pub unsafe fn setCorridor(
+                self: Pin<&mut dtPathCorridor>,
+                target: *const f32,
+                path: *const u32,
+                path_len: i32
+            );
+
+            #[rust_name = "find_corners"]
+            #[cfg(feature = "detour_crowd")]
+            pub unsafe fn findCorners(
+                self: Pin<&mut dtPathCorridor>,
+                corner_vertices: *mut f32,
+                corner_flags: *mut u8,
+                corner_polys: *mut u32,
+                max_len: i32,
+                query: *mut dtNavMeshQuery,
+                filter: *const dtQueryFilter
+            ) -> i32;
+
+            #[rust_name = "move_position"]
+            #[cfg(feature = "detour_crowd")]
+            pub unsafe fn movePosition(
+                self: Pin<&mut dtPathCorridor>,
+                new_pos: *const f32,
+                query: *mut dtNavMeshQuery,
+                filter: *const dtQueryFilter
+            ) -> bool;
+        }
     }
 }
 
+unsafe impl Send for ffi::recast::rcPolyMesh {}
+unsafe impl Send for ffi::recast::rcPolyMeshDetail {}
+unsafe impl Send for ffi::detour::dtNavMesh {}
+unsafe impl Send for ffi::detour::dtNavMeshQuery {}
+unsafe impl Sync for ffi::detour::dtNavMeshQuery {}
+unsafe impl Send for ffi::detour::dtPathCorridor {}
+unsafe impl Sync for ffi::detour::dtPathCorridor {}
+
 #[cfg(test)]
 mod tests {
-
     #[cfg(feature = "recast")]
     mod recast {
         use crate::ffi::recast;
+
+        #[test]
+        fn test_calc_grid_size() {
+            let bmin = [-10.; 3];
+            let bmax = [10.; 3];
+            let cs = 1.;
+            let (mut w, mut h) = (0, 0);
+            unsafe { recast::calc_grid_size(bmin.as_ptr(), bmax.as_ptr(), cs, &mut w as *mut _, &mut h as *mut _); }
+
+            assert_eq!(w, 20);
+            assert_eq!(h, 20);
+        }
 
         #[test]
         fn test_new_heightfield_not_null() {

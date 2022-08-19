@@ -4,9 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-#bundled-recast = ["recast-sys/bundled"]
-default = ["detour", "recast"]
+default = ["detour_crowd", "recast"]
+
 detour = ["recast-sys/detour"]
+detour_crowd = ["detour", "recast-sys/detour_crowd"]
 recast = ["recast-sys/recast"]
 
 [workspace]

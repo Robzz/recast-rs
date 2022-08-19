@@ -1,9 +1,18 @@
 use cxx::UniquePtr;
 use recast_sys::{ffi::recast::*, RecastConfig};
 
+#[cfg(feature = "detour")]
+use recast_sys::ffi::detour::*;
+
+#[cfg(feature = "detour")]
+use crate::detour::NavMesh;
+
 use crate::{
-    CompactHeightField, ContourSet, HeightField, MarkedMesh, Mesh, PolyMesh, PolyMeshDetail,
-    RecastError, RecastNavMeshData,
+    recast::{
+        CompactHeightField, ContourSet, HeightField, MarkedMesh, Mesh, PolyMesh, PolyMeshDetail,
+        RecastError, RecastNavMeshData,
+    },
+    Error,
 };
 
 pub struct RecastContext {
@@ -51,7 +60,14 @@ impl RecastContext {
         mesh: &Mesh<'data>,
     ) -> MarkedMesh<'data> {
         let n_vertices = mesh.vertices.len() / 3;
-        let n_triangles = mesh.indices.unwrap().len() / 3;
+        let indices = mesh.indices.map(|s| s.to_owned()).unwrap_or_else(|| {
+            mesh.vertices
+                .chunks_exact(3)
+                .enumerate()
+                .map(|(i, _v)| i as i32)
+                .collect::<Vec<_>>()
+        });
+        let n_triangles = &indices.len() / 3;
 
         let mut walkable_areas = vec![0; n_triangles];
         unsafe {
@@ -60,25 +76,21 @@ impl RecastContext {
                 self.config.walkable_slope_angle,
                 mesh.vertices.as_ptr(),
                 n_vertices as i32,
-                mesh.indices.unwrap().as_ptr(),
+                indices.as_ptr(),
                 n_triangles as i32,
                 walkable_areas.as_mut_ptr(),
             )
         };
         MarkedMesh {
             vertices: mesh.vertices,
-            indices: mesh.indices.unwrap(),
+            indices,
             areas: walkable_areas,
         }
     }
 
-    pub fn init_heightfield(
-        &mut self,
-        heightfield: &mut HeightField,
-        width: i32,
-        height: i32,
-    ) {
-        unsafe {
+    pub fn new_heightfield(&mut self, width: i32, height: i32) -> Result<HeightField, Error> {
+        let mut heightfield = HeightField::new()?;
+        let res = unsafe {
             recast_sys::ffi::recast::create_heightfield(
                 self.context_ptr(),
                 heightfield.pin_mut(),
@@ -88,7 +100,13 @@ impl RecastContext {
                 self.config.bmax.as_ptr(),
                 self.config.cs,
                 self.config.ch,
-            );
+            )
+        };
+        if res {
+            Ok(heightfield)
+        } else {
+            // TODO: wrong error kind
+            Err(RecastError::CompactHeightfieldError.into())
         }
     }
 
@@ -96,25 +114,18 @@ impl RecastContext {
     /// method is a good default to start building navmeshes, but for more advanced or performance
     /// critical scenarios, you may want to use the other methods exposed by this class directly
     /// and cache intermediate results.
-    pub fn default_pipeline<'a, I>(
-        &mut self,
-        input_geo: I,
-    ) -> Result<RecastNavMeshData, RecastError>
+    pub fn default_pipeline<'a, I>(&mut self, input_geo: I) -> Result<RecastNavMeshData, Error>
     where
         I: IntoIterator<Item = &'a Mesh<'a>>,
     {
-        let mut heightfield = HeightField::new().unwrap();
-        self.init_heightfield(&mut heightfield, self.grid_width, self.grid_height);
+        let mut heightfield = self.new_heightfield(self.grid_width, self.grid_height)?;
 
         for mesh in input_geo {
-            if let Some(_indices) = mesh.indices {
-                let marked_mesh = self.mark_walkable_triangles(mesh);
-                self.rasterize_mesh(&mut heightfield, &marked_mesh);
-            } else {
-                todo!("TODO: process non indexed mesh");
-            }
+            let marked_mesh = self.mark_walkable_triangles(mesh);
+            self.rasterize_mesh(&mut heightfield, &marked_mesh);
         }
 
+        // TODO: make configurable ?
         let filter_low_hanging_obstacles = true;
         let filter_ledge_spans = true;
         let filter_walkable_low_height_spans = true;
@@ -140,6 +151,10 @@ impl RecastContext {
 
         let mut poly_mesh = PolyMesh::new().unwrap();
         self.build_poly_mesh(&mut contour_set, &mut poly_mesh);
+        // TODO: this should not be arcane as it is. this is about the flags thingy for detour filter queries, btw
+        for flag in poly_mesh.flags_mut() {
+            *flag = 1;
+        }
 
         let mut detail = PolyMeshDetail::new().unwrap();
         self.build_poly_mesh_detail(&poly_mesh, &compact_heightfield, &mut detail);
@@ -147,11 +162,38 @@ impl RecastContext {
         Ok(RecastNavMeshData { poly_mesh, detail })
     }
 
+    #[cfg(feature = "detour")]
+    pub fn default_pipeline_detour<'a, I>(
+        &mut self,
+        input_geo: I,
+    ) -> Result<(RecastNavMeshData, NavMesh), Error>
+    where
+        I: IntoIterator<Item = &'a Mesh<'a>>,
+    {
+        let navmesh_data = self.default_pipeline(input_geo)?;
+        let mut create_mesh_data = NavMeshCreateParams::from(&navmesh_data);
+        create_mesh_data.b_min = self.config.bmin;
+        create_mesh_data.b_max = self.config.bmax;
+        create_mesh_data.walkable_height = self.config.walkable_height as f32 * self.config.ch;
+        create_mesh_data.walkable_radius = self.config.walkable_radius as f32 * self.config.cs;
+        create_mesh_data.walkable_climb = self.config.walkable_climb as f32 * self.config.ch;
+        create_mesh_data.cs = self.config.cs;
+        create_mesh_data.ch = self.config.ch;
+        create_mesh_data.build_bv_tree = true;
+
+        let navmesh = NavMesh::single_tile(create_mesh_data)?;
+
+        Ok((navmesh_data, navmesh))
+    }
+
     pub fn rasterize_mesh(&mut self, heightfield: &mut HeightField, mesh: &MarkedMesh) -> bool {
         let n_vertices = mesh.vertices.len() / 3;
         let n_triangles = mesh.indices.len() / 3;
 
-        println!("Rasterizing mesh with {} vertices and {} triangles", n_vertices, n_triangles);
+        println!(
+            "Rasterizing mesh with {} vertices and {} triangles",
+            n_vertices, n_triangles
+        );
 
         return unsafe {
             recast_sys::ffi::recast::rasterize_triangles_with_indices(
@@ -290,5 +332,96 @@ impl RecastContext {
 
     unsafe fn context_ptr(&mut self) -> *mut rcContext {
         self.ptr.pin_mut().get_unchecked_mut()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use recast_sys::RecastConfig;
+
+    use crate::recast::Mesh;
+
+    use super::RecastContext;
+
+    // TODO: test non indexed mesh
+    const SAMPLE_TRI_MESH: &[[f32; 3]] = &[
+        [-10., 0., 10.],
+        [ 10., 0., 10.],
+        [ 10., 0.,-10.],
+        [-10., 0.,-10.],
+    ];
+    const SAMPLE_TRI_MESH_INDICES: &[i32] = &[
+        0, 1, 2,
+        2, 3, 0
+    ];
+    const SAMPLE_TRI_MESH_BMIN: [f32; 3] = [-15., -1., -15.];
+    const SAMPLE_TRI_MESH_BMAX: [f32; 3] = [15., 1., 15.];
+
+    #[test]
+    fn test_new_context() {
+        let context = RecastContext::new(RecastConfig::default());
+        assert!(context.is_ok());
+    }
+
+    #[test]
+    fn test_context_config_passthrough() {
+        let context = RecastContext::new(RecastConfig::default()).unwrap();
+        assert_eq!(context.config, RecastConfig::default());
+    }
+
+    #[test]
+    fn test_new_heightfield() {
+        let mut context = RecastContext::new(RecastConfig::default()).unwrap();
+        assert!(context.new_heightfield(20, 20).is_ok());
+    }
+
+    #[test]
+    fn mesh_from_sample_succeeds() {
+        let buf = SAMPLE_TRI_MESH
+            .into_iter()
+            .flatten()
+            .map(|f| *f)
+            .collect::<Vec<_>>();
+        let res = Mesh::from_buffers(buf.as_slice(), SAMPLE_TRI_MESH_INDICES);
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn default_pipeline_sample_mesh_succeeds() {
+        let mut context = RecastContext::new(RecastConfig {
+            bmin: SAMPLE_TRI_MESH_BMIN,
+            bmax: SAMPLE_TRI_MESH_BMAX,
+            ..Default::default()
+        })
+        .unwrap();
+        let buf = SAMPLE_TRI_MESH
+            .into_iter()
+            .flatten()
+            .map(|f| *f)
+            .collect::<Vec<_>>();
+        let mesh = Mesh::from_vertex_buffer(buf.as_slice()).unwrap();
+        let res = context.default_pipeline(&[mesh]);
+        assert!(res.is_ok());
+        dbg!(res.unwrap().poly_mesh.vertices());
+    }
+
+    #[test]
+    #[cfg(feature = "detour")]
+    fn default_detour_pipeline_sample_mesh_succeeds() {
+        let mut context = RecastContext::new(RecastConfig {
+            bmin: SAMPLE_TRI_MESH_BMIN,
+            bmax: SAMPLE_TRI_MESH_BMAX,
+            max_verts_per_poly: 6,
+            ..Default::default()
+        })
+        .unwrap();
+        let buf = SAMPLE_TRI_MESH
+            .into_iter()
+            .flatten()
+            .map(|f| *f)
+            .collect::<Vec<_>>();
+        let mesh = Mesh::from_vertex_buffer(buf.as_slice()).unwrap();
+        let res = context.default_pipeline_detour(&[mesh]);
+        assert!(res.is_ok());
     }
 }
