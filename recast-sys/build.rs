@@ -44,6 +44,7 @@ fn main() {
             .file("recastnavigation/Recast/Source/Recast.cpp")
             .file("recastnavigation/Recast/Source/RecastAlloc.cpp")
             .file("recastnavigation/Recast/Source/RecastArea.cpp")
+            .file("recastnavigation/Recast/Source/RecastAssert.cpp")
             .file("recastnavigation/Recast/Source/RecastContour.cpp")
             .file("recastnavigation/Recast/Source/RecastFilter.cpp")
             .file("recastnavigation/Recast/Source/RecastLayers.cpp")
