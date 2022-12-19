@@ -55,6 +55,8 @@ impl RecastContext {
         &mut self.config
     }
 
+    // Not sure how to fix this one
+    #[allow(clippy::needless_lifetimes)]
     pub fn mark_walkable_triangles<'ctx, 'data>(
         &'ctx mut self,
         mesh: &Mesh<'data>,
@@ -94,8 +96,8 @@ impl RecastContext {
             recast_sys::ffi::recast::create_heightfield(
                 self.context_ptr(),
                 heightfield.pin_mut(),
-                width as i32,
-                height as i32,
+                width,
+                height,
                 self.config.bmin.as_ptr(),
                 self.config.bmax.as_ptr(),
                 self.config.cs,
@@ -325,7 +327,7 @@ impl RecastContext {
                 heightfield.as_ref(),
                 self.config.details_sample_dist,
                 self.config.details_sample_max_error,
-                detail.pin_mut(),
+                detail.ptr.pin_mut().poly_mesh_detail_owned_get_inner_mut(),
             )
         };
     }
@@ -378,9 +380,9 @@ mod tests {
     #[test]
     fn mesh_from_sample_succeeds() {
         let buf = SAMPLE_TRI_MESH
-            .into_iter()
+            .iter()
             .flatten()
-            .map(|f| *f)
+            .copied()
             .collect::<Vec<_>>();
         let res = Mesh::from_buffers(buf.as_slice(), SAMPLE_TRI_MESH_INDICES);
         assert!(res.is_ok());
@@ -395,9 +397,9 @@ mod tests {
         })
         .unwrap();
         let buf = SAMPLE_TRI_MESH
-            .into_iter()
+            .iter()
             .flatten()
-            .map(|f| *f)
+            .copied()
             .collect::<Vec<_>>();
         let mesh = Mesh::from_vertex_buffer(buf.as_slice()).unwrap();
         let res = context.default_pipeline(&[mesh]);
@@ -416,9 +418,9 @@ mod tests {
         })
         .unwrap();
         let buf = SAMPLE_TRI_MESH
-            .into_iter()
+            .iter()
             .flatten()
-            .map(|f| *f)
+            .copied()
             .collect::<Vec<_>>();
         let mesh = Mesh::from_vertex_buffer(buf.as_slice()).unwrap();
         let res = context.default_pipeline_detour(&[mesh]);

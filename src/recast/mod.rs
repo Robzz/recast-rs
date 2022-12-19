@@ -47,4 +47,4 @@ uptr_wrapper!(
 );
 uptr_wrapper!(pub ContourSet, rcContourSet, new_contour_set);
 uptr_wrapper!(pub PolyMesh, rcPolyMesh, new_poly_mesh);
-uptr_wrapper!(pub PolyMeshDetail, rcPolyMeshDetail, new_poly_mesh_detail);
+uptr_wrapper!(pub PolyMeshDetail, rcPolyMeshDetailOwned, new_poly_mesh_detail_owned);

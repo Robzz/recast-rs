@@ -2,6 +2,20 @@
 #include "recast-sys/recastnavigation/Recast/Include/Recast.h"
 #include <memory>
 
+rcPolyMeshDetailOwned::rcPolyMeshDetailOwned(rcPolyMeshDetail* detail): m_inner(detail) { }
+
+rcPolyMeshDetailOwned::~rcPolyMeshDetailOwned() {
+    rcFreePolyMeshDetail(this->m_inner);
+}
+
+rcPolyMeshDetail const& rcPolyMeshDetailOwned::getInner() const {
+    return *this->m_inner;
+}
+
+rcPolyMeshDetail& rcPolyMeshDetailOwned::getInner() {
+    return *this->m_inner;
+}
+
 std::unique_ptr<rcContext> newRcContext(bool diagnostics) {
     return std::make_unique<rcContext>(diagnostics);
 }
@@ -23,7 +37,11 @@ std::unique_ptr<rcPolyMesh> newRcPolyMesh() {
 }
 
 std::unique_ptr<rcPolyMeshDetail> newRcPolyMeshDetail() {
-    return std::make_unique<rcPolyMeshDetail>();
+    return std::unique_ptr<rcPolyMeshDetail>(rcAllocPolyMeshDetail());
+}
+
+std::unique_ptr<rcPolyMeshDetailOwned> newRcPolyMeshDetailOwned() {
+    return std::make_unique<rcPolyMeshDetailOwned>(rcAllocPolyMeshDetail());
 }
 
 const std::uint16_t* polyMeshGetVerts(rcPolyMesh const& poly_mesh) {

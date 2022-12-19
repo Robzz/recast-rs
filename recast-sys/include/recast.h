@@ -4,12 +4,25 @@
 #include "recast-sys/recastnavigation/Recast/Include/Recast.h"
 #include <memory>
 
+struct rcPolyMeshDetailOwned {
+    public:
+    rcPolyMeshDetailOwned(rcPolyMeshDetail* detail);
+    ~rcPolyMeshDetailOwned();
+
+    rcPolyMeshDetail const& getInner() const;
+    rcPolyMeshDetail& getInner();
+
+    private:
+    rcPolyMeshDetail* m_inner;
+};
+
 std::unique_ptr<rcContext> newRcContext(bool diagnostics);
 std::unique_ptr<rcHeightfield> newRcHeightfield();
 std::unique_ptr<rcCompactHeightfield> newRcCompactHeightfield();
 std::unique_ptr<rcContourSet> newRcContourSet();
 std::unique_ptr<rcPolyMesh> newRcPolyMesh();
 std::unique_ptr<rcPolyMeshDetail> newRcPolyMeshDetail();
+std::unique_ptr<rcPolyMeshDetailOwned> newRcPolyMeshDetailOwned();
 
 const std::uint16_t* polyMeshGetVerts(rcPolyMesh const& poly_mesh);
 std::uint16_t* polyMeshGetVertsMut(rcPolyMesh & poly_mesh);

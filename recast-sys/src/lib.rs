@@ -58,8 +58,8 @@ impl Default for RecastConfig {
 /// this API from Rust safely will be fairly unergonomic, it is therefore highly recommended to use
 /// the wrapper `recast-rs` crate to access this functionality.
 ///
-/// We do not expose the `dt/rcAlloc*` functions and expose our own constructors
-/// construct a `UniquePtr` instead, as these are safer and more convenient to use.
+/// This crate does not expose the `dt/rcAlloc*` functions and exposes its own constructors
+/// returning a `UniquePtr` instead, as these are safer and more convenient to use.
 ///
 /// Many of these functions deal with raw pointers and are therefore unsafe by nature.
 /// In general, using them safely boils down to passing in properly initialized data along with
@@ -91,8 +91,13 @@ pub mod ffi {
             /// Recast polygon mesh.
             pub type rcPolyMesh;
 
-            /// Recast polygon mesh height detail.
+            /// Recast polygon mesh height detail. This type does not automatically free the memory
+            /// it owns, it is therefore recommended to use `rcPolyMeshDetailOwned` instead which
+            /// will properly clean up when going out of scope.
             pub type rcPolyMeshDetail;
+
+            /// Recast polygon mesh height detail with managed memory management.
+            pub type rcPolyMeshDetailOwned;
 
             #[rust_name = "calc_grid_size"]
             pub unsafe fn rcCalcGridSize(
@@ -121,6 +126,12 @@ pub mod ffi {
             #[rust_name = "new_poly_mesh_detail"]
             pub fn newRcPolyMeshDetail() -> UniquePtr<rcPolyMeshDetail>;
 
+            #[rust_name = "new_poly_mesh_detail_owned"]
+            /// This type and method don't exist in the upstream Recast API, this type is
+            /// equivalent to `rcPolyMeshDetail`, except it has a destructor invoking
+            /// `rcFreePolyMesh` so you don't have to do it yourself.
+            pub fn newRcPolyMeshDetailOwned() -> UniquePtr<rcPolyMeshDetailOwned>;
+
             #[rust_name = "free_heightfield"]
             /// Free a heightfield allocated by Recast.
             ///
@@ -129,6 +140,15 @@ pub mod ffi {
             /// The pointer passed to this method must have been obtained by the `new_heightfield`
             /// function and must not have been already free'd.
             pub unsafe fn rcFreeHeightField(heightfield: *mut rcHeightfield);
+
+            #[rust_name = "free_poly_mesh_detail"]
+            /// Free a rcPolyMeshDetail allocated by Recast.
+            ///
+            /// # Safety
+            ///
+            /// The pointer passed to this method must have been obtained by the
+            /// `new_poly_mesh_detail` function and must not have been already free'd.
+            pub unsafe fn rcFreePolyMeshDetail(detail: *mut rcPolyMeshDetail);
 
             #[rust_name = "create_heightfield"]
             pub unsafe fn rcCreateHeightfield(
@@ -255,6 +275,12 @@ pub mod ffi {
                 sample_max_error: f32,
                 detail: Pin<&mut rcPolyMeshDetail>,
             ) -> bool;
+
+            #[rust_name = "poly_mesh_detail_owned_get_inner"]
+            pub fn getInner(self: &rcPolyMeshDetailOwned) -> &rcPolyMeshDetail;
+
+            #[rust_name = "poly_mesh_detail_owned_get_inner_mut"]
+            pub fn getInner(self: Pin<&mut rcPolyMeshDetailOwned>) -> Pin<&mut rcPolyMeshDetail>;
 
             #[rust_name = "poly_mesh_get_vertices"]
             pub fn polyMeshGetVerts(poly_mesh: &rcPolyMesh) -> *const u16;
@@ -487,12 +513,22 @@ pub mod ffi {
 }
 
 unsafe impl Send for ffi::recast::rcPolyMesh {}
+unsafe impl Sync for ffi::recast::rcPolyMesh {}
 unsafe impl Send for ffi::recast::rcPolyMeshDetail {}
+unsafe impl Sync for ffi::recast::rcPolyMeshDetail {}
 unsafe impl Send for ffi::detour::dtNavMesh {}
 unsafe impl Send for ffi::detour::dtNavMeshQuery {}
 unsafe impl Sync for ffi::detour::dtNavMeshQuery {}
 unsafe impl Send for ffi::detour::dtPathCorridor {}
 unsafe impl Sync for ffi::detour::dtPathCorridor {}
+
+impl std::ops::Deref for ffi::recast::rcPolyMeshDetailOwned {
+    type Target = ffi::recast::rcPolyMeshDetail;
+
+    fn deref(&self) -> &Self::Target {
+        self.poly_mesh_detail_owned_get_inner()
+    }
+}
 
 #[cfg(test)]
 mod tests {
