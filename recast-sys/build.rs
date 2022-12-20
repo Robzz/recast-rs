@@ -10,6 +10,7 @@ fn main() {
             .flag_if_supported("-Wno-class-memaccess")
             // Detour source files
             .file("recastnavigation/Detour/Source/DetourAlloc.cpp")
+            .file("recastnavigation/Detour/Source/DetourAssert.cpp")
             .file("recastnavigation/Detour/Source/DetourCommon.cpp")
             .file("recastnavigation/Detour/Source/DetourNavMesh.cpp")
             .file("recastnavigation/Detour/Source/DetourNavMeshBuilder.cpp")
