@@ -192,11 +192,6 @@ impl RecastContext {
         let n_vertices = mesh.vertices.len() / 3;
         let n_triangles = mesh.indices.len() / 3;
 
-        println!(
-            "Rasterizing mesh with {} vertices and {} triangles",
-            n_vertices, n_triangles
-        );
-
         return unsafe {
             recast_sys::ffi::recast::rasterize_triangles_with_indices(
                 self.context_ptr(),
@@ -404,7 +399,6 @@ mod tests {
         let mesh = Mesh::from_vertex_buffer(buf.as_slice()).unwrap();
         let res = context.default_pipeline(&[mesh]);
         assert!(res.is_ok());
-        dbg!(res.unwrap().poly_mesh.vertices());
     }
 
     #[test]
