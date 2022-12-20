@@ -158,8 +158,18 @@ impl<'q> NavMeshQueryGuard<'q> {
         None
     }
 
+    pub fn closest_point_on_poly(&self, poly_ref: u32, pos: &[f32; 3]) -> Result<([f32; 3], bool), DetourError> {
+        let mut pos_over_poly = false;
+        let mut closest = [0.; 3];
+        let _res = unsafe {
+            self.query.as_ref().closest_point_on_poly(poly_ref, pos.as_ptr(), closest.as_mut_ptr(), &mut pos_over_poly as *mut bool)
+        };
+        // TODO: error checking
+        Ok((closest, pos_over_poly))
+    }
+
     /// Search for the nearest polygon in a box around `p`. Returns the detour polygon id of the found polygon if any, 0 if none.
-    fn find_nearest_polygon(&self, p: [f32; 3], half_extents: [f32; 3]) -> Option<(u32, [f32; 3])> {
+    pub fn find_nearest_polygon(&self, p: [f32; 3], half_extents: [f32; 3]) -> Option<(u32, [f32; 3])> {
         let mut nearest_ref = 0;
         let mut nearest = [0.; 3];
         let filter = QueryFilter::default();
@@ -181,7 +191,9 @@ impl<'q> NavMeshQueryGuard<'q> {
     }
 }
 
-/// Provides the navigation mesh query functionality. Internally stores a weak reference to the target navmesh, querying the navmesh
+/// Provides the navigation mesh query functionality. Internally stores a weak reference to the
+/// target navmesh. The actual querying API is provided by the `NavMeshQueryGuard` type,
+/// constructed by upgrading the internal weak pointer.
 #[derive(Default)]
 pub struct NavMeshQuery {
     wptr: Weak<Mutex<OwnedNavMesh>>,

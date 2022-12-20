@@ -455,6 +455,15 @@ pub mod ffi {
                 max_len: i32
             ) -> bool;
 
+            #[rust_name = "closest_point_on_poly"]
+            pub unsafe fn closestPointOnPoly(
+                self: &dtNavMeshQuery,
+                ref_: u32,
+                pos: *const f32,
+                closest: *mut f32,
+                pos_over_poly: *mut bool,
+            ) -> u32;
+
             #[rust_name = "find_nearest_poly"]
             pub unsafe fn findNearestPoly(
                 self: &dtNavMeshQuery,
