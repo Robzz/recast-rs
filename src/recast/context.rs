@@ -127,17 +127,13 @@ impl RecastContext {
             self.rasterize_mesh(&mut heightfield, &marked_mesh);
         }
 
-        // TODO: make configurable ?
-        let filter_low_hanging_obstacles = true;
-        let filter_ledge_spans = true;
-        let filter_walkable_low_height_spans = true;
-        if filter_low_hanging_obstacles {
+        if self.config.filter_low_hanging_walkable_obstacles {
             self.filter_low_hanging_walkable_obstacles(&mut heightfield);
         }
-        if filter_ledge_spans {
+        if self.config.filter_ledge_spans {
             self.filter_ledge_spans(&mut heightfield);
         }
-        if filter_walkable_low_height_spans {
+        if self.config.filter_walkable_low_height_spans {
             self.filter_walkable_low_height_spans(&mut heightfield);
         }
 

@@ -1,3 +1,4 @@
+/// Contains the configuration values for the full Recast + Detour navmesh generation pipeline.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RecastConfig {
     pub tile_size: i32,
@@ -18,6 +19,9 @@ pub struct RecastConfig {
     pub max_simplification_error: f32,
     pub min_region_area: i32,
     pub merge_region_area: i32,
+    pub filter_low_hanging_walkable_obstacles: bool,
+    pub filter_ledge_spans: bool,
+    pub filter_walkable_low_height_spans: bool,
     /// The maximum number of vertices per polygon in the output data.
     ///
     /// *NOTE*: Detour only supports navmeshes of up to 6 vertices per polygon. This is the default
@@ -44,6 +48,9 @@ impl Default for RecastConfig {
             max_simplification_error: 1.3,
             min_region_area: 8,
             merge_region_area: 20,
+            filter_low_hanging_walkable_obstacles: true,
+            filter_ledge_spans: true,
+            filter_walkable_low_height_spans: true,
             max_verts_per_poly: 6,
             details_sample_dist: 6.,
             details_sample_max_error: 1.,
@@ -516,6 +523,8 @@ unsafe impl Send for ffi::recast::rcPolyMesh {}
 unsafe impl Sync for ffi::recast::rcPolyMesh {}
 unsafe impl Send for ffi::recast::rcPolyMeshDetail {}
 unsafe impl Sync for ffi::recast::rcPolyMeshDetail {}
+unsafe impl Send for ffi::recast::rcPolyMeshDetailOwned {}
+unsafe impl Sync for ffi::recast::rcPolyMeshDetailOwned {}
 unsafe impl Send for ffi::detour::dtNavMesh {}
 unsafe impl Send for ffi::detour::dtNavMeshQuery {}
 unsafe impl Sync for ffi::detour::dtNavMeshQuery {}
