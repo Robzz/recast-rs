@@ -1,32 +1,40 @@
 use std::sync::{Arc, Mutex, Weak};
 
-use crate::{uptr_wrapper, Error};
+use crate::uptr_wrapper;
 
 use recast_sys::ffi::detour::*;
-use thiserror::Error;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Default, thiserror::Error)]
 #[error("A Detour error occured")]
-pub struct DetourError;
+pub struct Error {
+    code: Option<u32>
+}
+
+impl Error {
+    pub(crate) fn from_code(code: u32) -> Error {
+        Error { code: Some(code) }
+    }
+}
 
 uptr_wrapper!(pub(crate) OwnedNavMesh, dtNavMesh, new_navmesh);
 uptr_wrapper!(QueryFilter, dtQueryFilter, new_query_filter);
 uptr_wrapper!(pub(crate) NavMeshQueryPriv, dtNavMeshQuery, new_navmesh_query);
 uptr_wrapper!(PathCorridor, dtPathCorridor, new_path_corridor);
 
-fn detour_check_status(status: u32) -> Result<(), Error> {
+fn detour_check_status<T>(ok_data: T, status: u32) -> Result<T, Error> {
     if status_failed(status) {
-        return Err(DetourError.into());
+        return Err(Error::from_code(status));
     }
-    Ok(())
+    Ok(ok_data)
 }
 
 impl NavMeshQueryPriv {
     pub fn init(&mut self, navmesh: &OwnedNavMesh, max_nodes: u32) -> Result<(), Error> {
-        detour_check_status(unsafe {
+        let res = unsafe {
             self.pin_mut()
                 .init(navmesh.as_ref() as *const _, max_nodes as i32)
-        })
+        };
+        detour_check_status((), res)
     }
 }
 
@@ -34,7 +42,7 @@ impl PathCorridor {
     pub fn init(&mut self, max_len: u32) -> Result<(), Error> {
         let res = unsafe { self.pin_mut().init(max_len as i32) };
         if !res {
-            return Err(DetourError.into());
+            return Err(Error::default());
         }
         Ok(())
     }
@@ -46,7 +54,7 @@ pub struct NavMesh {
 
 impl NavMesh {
     /// Create a new single-tile `NavMesh`.
-    pub fn single_tile(mut data: NavMeshCreateParams) -> Result<NavMesh, Error> {
+    pub fn single_tile(mut data: NavMeshCreateParams) -> Result<NavMesh, crate::Error> {
         let mut data_ptr: *mut u8 = std::ptr::null_mut();
         let mut data_len: i32 = 0;
         let res = unsafe {
@@ -57,7 +65,7 @@ impl NavMesh {
             )
         };
         if !res {
-            return Err(Error::Detour(DetourError));
+            return Err(Error::default())?;
         }
 
         let mut navmesh = OwnedNavMesh::new()?;
@@ -68,7 +76,7 @@ impl NavMesh {
                 .init(data_ptr, data_len, dtTileFlags::FreeData.repr)
         };
         if status_failed(res) {
-            return Err(Error::Detour(DetourError));
+            return Err(Error::from_code(res))?;
         }
 
         Ok(NavMesh {
@@ -76,7 +84,7 @@ impl NavMesh {
         })
     }
 
-    pub fn new_query(&self, max_nodes: u32) -> Result<NavMeshQuery, Error> {
+    pub fn new_query(&self, max_nodes: u32) -> Result<NavMeshQuery, crate::Error> {
         let mut query = NavMeshQueryPriv::new()?;
         let lock = self.ptr.lock();
         query.init(lock.as_ref().unwrap(), max_nodes)?;
@@ -158,7 +166,7 @@ impl<'q> NavMeshQueryGuard<'q> {
         None
     }
 
-    pub fn closest_point_on_poly(&self, poly_ref: u32, pos: &[f32; 3]) -> Result<([f32; 3], bool), DetourError> {
+    pub fn closest_point_on_poly(&self, poly_ref: u32, pos: &[f32; 3]) -> Result<([f32; 3], bool), Error> {
         let mut pos_over_poly = false;
         let mut closest = [0.; 3];
         let _res = unsafe {
@@ -249,7 +257,7 @@ impl<'q> NavMeshPathGuard<'q> {
                     corners.as_mut_ptr(),
                     flags.as_mut_ptr(),
                     polys.as_mut_ptr(),
-                    max_corners as i32,
+                    max_corners,
                     (query.query.pin_mut().get_unchecked_mut()) as *mut dtNavMeshQuery,
                     filter.as_ref() as *const _,
                 );

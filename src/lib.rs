@@ -7,7 +7,7 @@ pub mod recast;
 mod macros;
 
 #[cfg(feature = "detour")]
-use detour::DetourError;
+use detour::Error as DetourError;
 #[cfg(feature = "recast")]
 use recast::RecastError;
 

@@ -56,6 +56,7 @@ impl RecastContext {
     }
 
     // Not sure how to fix this one
+    /// Mark triangles of the input mesh with a slope below the configured limit as walkable.
     #[allow(clippy::needless_lifetimes)]
     pub fn mark_walkable_triangles<'ctx, 'data>(
         &'ctx mut self,
@@ -90,6 +91,7 @@ impl RecastContext {
         }
     }
 
+    /// Construct a new `HeightField` of specified dimensions.
     pub fn new_heightfield(&mut self, width: i32, height: i32) -> Result<HeightField, Error> {
         let mut heightfield = HeightField::new()?;
         let res = unsafe {
@@ -112,10 +114,10 @@ impl RecastContext {
         }
     }
 
-    /// Applies a sensible sequence of operations to generate a NavMesh from a triangle mesh. This
-    /// method is a good default to start building navmeshes, but for more advanced or performance
-    /// critical scenarios, you may want to use the other methods exposed by this class directly
-    /// and cache intermediate results.
+    /// Applies a sensible sequence of operations to generate a NavMesh from a triangle mesh,
+    /// similar to what the Recast demo does. This method is a good default to start building
+    /// navmeshes, but for more advanced or performance demanding scenarios, you may want to use
+    /// the other methods exposed by this type directly and implement your own pipeline.
     pub fn default_pipeline<'a, I>(&mut self, input_geo: I) -> Result<RecastNavMeshData, Error>
     where
         I: IntoIterator<Item = &'a Mesh<'a>>,
@@ -160,6 +162,7 @@ impl RecastContext {
         Ok(RecastNavMeshData { poly_mesh, detail })
     }
 
+    /// Run the `default_pipeline` and build a Detour navmesh from the Recast results.
     #[cfg(feature = "detour")]
     pub fn default_pipeline_detour<'a, I>(
         &mut self,
@@ -184,6 +187,12 @@ impl RecastContext {
         Ok((navmesh_data, navmesh))
     }
 
+    /// Rasterize a marked mesh onto the heightfield.
+    ///
+    /// The results of this method could be of interest to cache if building an iterative navmesh
+    /// generation pipeline. You could for instance keep a rasterized heightfield of your static
+    /// geometry on hand, then copy it and only need to mark and rasterize dynamic obstacle
+    /// geometry when refreshing the navmesh.
     pub fn rasterize_mesh(&mut self, heightfield: &mut HeightField, mesh: &MarkedMesh) -> bool {
         let n_vertices = mesh.vertices.len() / 3;
         let n_triangles = mesh.indices.len() / 3;
@@ -233,6 +242,7 @@ impl RecastContext {
         };
     }
 
+    /// Build a compact heightfield representation from a `HeightField`.
     pub fn build_compact_heightfield(
         &mut self,
         heightfield: &mut HeightField,
@@ -249,6 +259,7 @@ impl RecastContext {
         };
     }
 
+    /// Erode walkable areas in the heightfield by the configured radius.
     pub fn erode_walkable_area(&mut self, heightfield: &mut CompactHeightField) -> bool {
         return unsafe {
             recast_sys::ffi::recast::erode_walkable_area(
