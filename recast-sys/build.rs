@@ -1,13 +1,15 @@
 fn main() {
     let mut bridge = cxx_build::bridge("src/lib.rs");
-    bridge.flag_if_supported("-std=c++14").shared_flag(true);
+    bridge.flag_if_supported("-std=c++14")
+        .shared_flag(true)
+        // Yeah, I know. The official cmake build system doesn't enable additional warnings either.
+        // Enabling those flags does produce warnings, and I'd rather not patch Recast myself.
+        .warnings(false);
 
     #[cfg(feature = "detour")]
     {
         bridge
             .include("recastnavigation/Detour/Include")
-            // TODO: not a fan of sweeping this under the rug, look into the warning
-            .flag_if_supported("-Wno-class-memaccess")
             // Detour source files
             .file("recastnavigation/Detour/Source/DetourAlloc.cpp")
             .file("recastnavigation/Detour/Source/DetourAssert.cpp")
@@ -39,8 +41,6 @@ fn main() {
     {
         bridge
             .include("recastnavigation/Recast/Include/")
-            // Silences a comment related warning in recast
-            .flag_if_supported("-Wno-comment")
             // Recast source files
             .file("recastnavigation/Recast/Source/Recast.cpp")
             .file("recastnavigation/Recast/Source/RecastAlloc.cpp")
