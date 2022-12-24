@@ -23,12 +23,14 @@ pub enum Error {
     Detour(#[from] DetourError),
 }
 
-pub fn check_uptr_alloc<T>(ptr: UniquePtr<T>) -> Result<UniquePtr<T>, RecastError>
+pub type Result<T> = std::result::Result<T, Error>;
+
+pub fn check_uptr_alloc<T>(ptr: UniquePtr<T>) -> Result<UniquePtr<T>>
 where
     T: UniquePtrTarget,
 {
     if ptr.is_null() {
-        return Err(RecastError::OutOfMemoryError);
+        return Err(RecastError::OutOfMemoryError)?;
     }
     Ok(ptr)
 }

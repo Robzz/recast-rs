@@ -98,12 +98,14 @@ pub mod ffi {
             /// Recast polygon mesh.
             pub type rcPolyMesh;
 
-            /// Recast polygon mesh height detail. This type does not automatically free the memory
-            /// it owns, it is therefore recommended to use `rcPolyMeshDetailOwned` instead which
-            /// will properly clean up when going out of scope.
+            /// Recast polygon mesh height detail.
+            ///
+            /// This type does not automatically free the memory it owns, so you should either
+            /// remember to call [`rcFreePolyMeshDetail`] yourself, or use
+            /// [`rcPolyMeshDetailOwned`] instead which will do it for you.
             pub type rcPolyMeshDetail;
 
-            /// Recast polygon mesh height detail with managed memory management.
+            /// Recast polygon mesh height detail smart pointer.
             pub type rcPolyMeshDetailOwned;
 
             #[rust_name = "calc_grid_size"]
@@ -396,6 +398,14 @@ pub mod ffi {
             DT_TILE_FREE_DATA = 1,
         }
 
+        #[repr(i32)]
+        enum dtStraightPathOptions {
+            #[rust_name = "AreaCrossings"]
+            DT_STRAIGHTPATH_AREA_CROSSINGS = 1,
+            #[rust_name = "AllCrossings"]
+            DT_STRAIGHTPATH_ALL_CROSSINGS = 2,
+        }
+
         unsafe extern "C++" {
             include!("recast-sys/include/detour.h");
 
@@ -405,6 +415,7 @@ pub mod ffi {
             type dtNavMesh;
             type dtNavMeshQuery;
             type dtTileFlags;
+            type dtStraightPathOptions;
             type dtQueryFilter;
 
             #[cfg(feature = "detour_crowd")]
@@ -430,9 +441,6 @@ pub mod ffi {
                 out_data_size: *mut i32,
             ) -> bool;
 
-            #[rust_name = "status_failed"]
-            pub fn dtStatusFailed(status: u32) -> bool;
-
             #[rust_name = "init"]
             pub unsafe fn init(
                 self: Pin<&mut dtNavMesh>,
@@ -447,13 +455,6 @@ pub mod ffi {
                 navmesh: *const dtNavMesh,
                 max_nodes: i32,
             ) -> u32;
-
-            #[rust_name = "init"]
-            #[cfg(feature = "detour_crowd")]
-            pub unsafe fn init(
-                self: Pin<&mut dtPathCorridor>,
-                max_len: i32
-            ) -> bool;
 
             #[rust_name = "closest_point_on_poly"]
             pub unsafe fn closestPointOnPoly(
@@ -484,16 +485,48 @@ pub mod ffi {
                 filter: *const dtQueryFilter,
                 path: *mut u32,
                 path_len: *mut i32,
-                max_len: i32
+                max_len: i32,
             ) -> u32;
+
+            #[rust_name = "find_straight_path"]
+            pub unsafe fn findStraightPath(
+                self: &dtNavMeshQuery,
+                start_pos: *const f32,
+                end_pos: *const f32,
+                path: *const u32,
+                path_len: i32,
+                straight_path: *mut f32,
+                straight_path_flags: *mut u8,
+                straight_path_polys: *mut u32,
+                straight_path_len: *mut i32,
+                max_len: i32,
+                options: i32,
+            ) -> u32;
+
+            #[rust_name = "get_poly_height"]
+            pub unsafe fn getPolyHeight(
+                self: &dtNavMeshQuery,
+                poly: u32,
+                pos: *const f32,
+                height: *mut f32,
+            ) -> u32;
+
+            #[rust_name = "init"]
+            #[cfg(feature = "detour_crowd")]
+            pub unsafe fn init(self: Pin<&mut dtPathCorridor>, max_len: i32) -> bool;
+
+            #[rust_name = "len"]
+            #[cfg(feature = "detour_crowd")]
+            #[allow(clippy::len_without_is_empty)]
+            pub fn getPathCount(self: &dtPathCorridor) -> i32;
+
+            #[rust_name = "get_pos"]
+            #[cfg(feature = "detour_crowd")]
+            pub fn getPos(self: &dtPathCorridor) -> *const f32;
 
             #[rust_name = "reset"]
             #[cfg(feature = "detour_crowd")]
-            pub unsafe fn reset(
-                self: Pin<&mut dtPathCorridor>,
-                poly: u32,
-                pos: *const f32
-            );
+            pub unsafe fn reset(self: Pin<&mut dtPathCorridor>, poly: u32, pos: *const f32);
 
             #[rust_name = "set_corridor"]
             #[cfg(feature = "detour_crowd")]
@@ -501,7 +534,7 @@ pub mod ffi {
                 self: Pin<&mut dtPathCorridor>,
                 target: *const f32,
                 path: *const u32,
-                path_len: i32
+                path_len: i32,
             );
 
             #[rust_name = "find_corners"]
@@ -513,7 +546,7 @@ pub mod ffi {
                 corner_polys: *mut u32,
                 max_len: i32,
                 query: *mut dtNavMeshQuery,
-                filter: *const dtQueryFilter
+                filter: *const dtQueryFilter,
             ) -> i32;
 
             #[rust_name = "move_position"]
@@ -522,7 +555,7 @@ pub mod ffi {
                 self: Pin<&mut dtPathCorridor>,
                 new_pos: *const f32,
                 query: *mut dtNavMeshQuery,
-                filter: *const dtQueryFilter
+                filter: *const dtQueryFilter,
             ) -> bool;
         }
     }
@@ -560,7 +593,15 @@ mod tests {
             let bmax = [10.; 3];
             let cs = 1.;
             let (mut w, mut h) = (0, 0);
-            unsafe { recast::calc_grid_size(bmin.as_ptr(), bmax.as_ptr(), cs, &mut w as *mut _, &mut h as *mut _); }
+            unsafe {
+                recast::calc_grid_size(
+                    bmin.as_ptr(),
+                    bmax.as_ptr(),
+                    cs,
+                    &mut w as *mut _,
+                    &mut h as *mut _,
+                );
+            }
 
             assert_eq!(w, 20);
             assert_eq!(h, 20);

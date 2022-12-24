@@ -13,8 +13,8 @@ likely to happen when this crate becomes usable enough to build a minimal Bevy p
 
 `recast-rs` contains two crates:
 
-  * `recast-sys`: low level FFI bindings to the Recast library. You will need a working C++14 compiler to compile the
-    Recast code. There is no option to use system libraries yet, just the bundled one.
+  * `recast-sys`: low level FFI bindings to the Recast library. A working C++14 compiler is required.
+  There is no option to use system libraries yet, just the bundled one.
   * `recast`: higher level bindings.
 
 ## License
