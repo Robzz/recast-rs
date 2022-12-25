@@ -82,10 +82,10 @@ impl DetourStatus {
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// Error code returned by a Detour method
-    #[error("A Detour operation returned an error")]
+    #[error("A Detour operation failed")]
     Detour(Option<DetourStatus>),
     /// Error conditions not directly tied to a Detour error code
-    #[error("An operation encountered an error: {0}")]
+    #[error("{0}")]
     Other(#[from] OtherError),
 }
 
@@ -111,6 +111,8 @@ pub enum OtherError {
     MemAllocFailed,
     #[error("Navmesh creation failure")]
     NavMeshCreationFailed,
+    #[error("A resource was invalidated")]
+    DeallocatedResource,
     #[error("An unspecified error occurred")]
     #[default]
     Other,
@@ -204,8 +206,9 @@ impl<'q> NavMeshQueryGuard<'q> {
     /// `max_len` navmesh polygons.
     ///
     /// The origin and destination points must reside on the surface of the navmesh. You can find
-    /// the closest navmesh points by using the [`find_nearest_polygon`] method. See the
-    /// [`find_path_search_polys`] method for an alternative that performs this search for you.
+    /// the closest navmesh points by using the [`find_nearest_polygon`](Self::find_nearest_polygon) method. See the
+    /// [`find_path_search_polys`](Self::find_path_search_polys) method for an alternative that performs this search
+    /// for you.
     ///
     /// If a path is found, returns a non-empty [`Vec`] of polygon identifiers.
     pub fn find_path(
@@ -450,7 +453,7 @@ impl NavMeshQuery {
     }
 }
 
-/// The possible ways that the [`find_straight_path`] method can tesselate paths at crossings.
+/// The possible ways that the [`NavMeshQueryGuard::find_straight_path`] method can tesselate paths at crossings.
 #[derive(Debug)]
 pub enum StraightPathCrossings {
     /// Do not add extra points on the path at crossings
