@@ -16,4 +16,4 @@ members = ["./recast-sys"]
 [dependencies]
 cxx = "1.0"
 recast-sys = { path = "./recast-sys", default-features = false }
-thiserror = "1.0"
+thiserror = "2.0"

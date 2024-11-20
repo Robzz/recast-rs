@@ -6,6 +6,8 @@ pub mod recast;
 
 mod macros;
 
+use std::ptr::NonNull;
+
 #[cfg(feature = "detour")]
 use detour::Error as DetourError;
 #[cfg(feature = "recast")]
@@ -33,4 +35,22 @@ where
         return Err(RecastError::OutOfMemoryError)?;
     }
     Ok(ptr)
+}
+
+fn slice_from_raw_parts_or_dangling<'a, T>(data: *const T, len: usize) -> &'a [T] {
+    if data.is_null() {
+        unsafe { std::slice::from_raw_parts(NonNull::dangling().as_ptr(), 0usize) }
+    }
+    else {
+        unsafe { std::slice::from_raw_parts(data, len) }
+    }
+}
+
+fn slice_from_raw_parts_mut_or_dangling<'a, T>(data: *mut T, len: usize) -> &'a mut [T] {
+    if data.is_null() {
+        unsafe { std::slice::from_raw_parts_mut(NonNull::dangling().as_ptr(), 0usize) }
+    }
+    else {
+        unsafe { std::slice::from_raw_parts_mut(data, len) }
+    }
 }
