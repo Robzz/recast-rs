@@ -1,5 +1,9 @@
+use std::ptr::{self, NonNull};
+
 #[cfg(feature = "detour")]
 use recast_sys::ffi::detour::NavMeshCreateParams;
+
+use crate::{slice_from_raw_parts_mut_or_dangling, slice_from_raw_parts_or_dangling};
 
 use super::PolyMesh;
 
@@ -7,38 +11,38 @@ impl PolyMesh {
     pub fn vertices(&self) -> &[u16] {
         let vertices_buffer = recast_sys::ffi::recast::poly_mesh_get_vertices(self.as_ref());
         let n_vertices = recast_sys::ffi::recast::poly_mesh_get_vertex_count(self.as_ref());
-        unsafe { std::slice::from_raw_parts(vertices_buffer, (n_vertices * 3) as usize) }
+        slice_from_raw_parts_or_dangling(vertices_buffer, (n_vertices * 3) as usize)
     }
 
     pub fn polygons(&self) -> &[u16] {
         let polygons_buffer = recast_sys::ffi::recast::poly_mesh_get_polys(self.as_ref());
         let n_polys = recast_sys::ffi::recast::poly_mesh_get_poly_count(self.as_ref());
         let n_vpp = recast_sys::ffi::recast::poly_mesh_max_vertex_count_per_poly(self.as_ref());
-        unsafe { std::slice::from_raw_parts(polygons_buffer, (n_polys * 2 * n_vpp) as usize) }
+        slice_from_raw_parts_or_dangling(polygons_buffer, (n_polys * 2 * n_vpp) as usize)
     }
 
     pub fn regions(&self) -> &[u16] {
         let regions_buffer = recast_sys::ffi::recast::poly_mesh_get_regions(self.as_ref());
         let n_polys = recast_sys::ffi::recast::poly_mesh_get_poly_count(self.as_ref());
-        unsafe { std::slice::from_raw_parts(regions_buffer, n_polys as usize) }
+        slice_from_raw_parts_or_dangling(regions_buffer, n_polys as usize)
     }
 
     pub fn flags(&self) -> &[u16] {
         let flags_buffer = recast_sys::ffi::recast::poly_mesh_get_flags(self.as_ref());
         let n_polys = recast_sys::ffi::recast::poly_mesh_get_poly_count(self.as_ref());
-        unsafe { std::slice::from_raw_parts(flags_buffer, n_polys as usize) }
+        slice_from_raw_parts_or_dangling(flags_buffer, n_polys as usize)
     }
 
     pub fn flags_mut(&mut self) -> &mut [u16] {
         let flags_buffer = recast_sys::ffi::recast::poly_mesh_get_flags_mut(self.pin_mut());
         let n_polys = recast_sys::ffi::recast::poly_mesh_get_poly_count(self.as_ref());
-        unsafe { std::slice::from_raw_parts_mut(flags_buffer, n_polys as usize) }
+        slice_from_raw_parts_mut_or_dangling(flags_buffer, n_polys as usize)
     }
 
     pub fn areas(&self) -> &[u8] {
         let areas_buffer = recast_sys::ffi::recast::poly_mesh_get_areas(self.as_ref());
         let n_polys = recast_sys::ffi::recast::poly_mesh_get_poly_count(self.as_ref());
-        unsafe { std::slice::from_raw_parts(areas_buffer, n_polys as usize) }
+        slice_from_raw_parts_or_dangling(areas_buffer, n_polys as usize)
     }
 }
 
